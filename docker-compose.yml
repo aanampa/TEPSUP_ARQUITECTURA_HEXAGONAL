@@ -1,0 +1,83 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    container_name: universidad-db-v2
+    hostname: universidad-db-v2
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=${ddir}
+      - MSSQL_PID=${MSSQL_PID}
+    ports:
+      - "${DB_PORT}:1433"
+    volumes:
+      - sqlserver_data_v2:/var/opt/mssql
+      - ./db/init-scripts:/init-scripts
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P ${DB_PASSWORD} -Q "SELECT 1" -C || exit 1
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - universidad-network-v2
+
+  sqlserver-config:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    container_name: universidad-db-configurator-v2
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    volumes:
+      - ./db/init-scripts:/scripts
+    environment:
+      - SA_PASSWORD=${DB_PASSWORD}
+    command: |
+      bash -c "
+      /opt/mssql-tools18/bin/sqlcmd -S ${DB_SERVER} -U sa -P ${DB_PASSWORD} -C -i /scripts/01-create-database.sql
+      /opt/mssql-tools18/bin/sqlcmd -S ${DB_SERVER} -U sa -P ${DB_PASSWORD} -C -d ${DB_NAME} -i /scripts/02-create-tables.sql
+      /opt/mssql-tools18/bin/sqlcmd -S ${DB_SERVER} -U sa -P ${DB_PASSWORD} -C -d ${DB_NAME} -i /scripts/03-insert-data.sql
+      echo 'Base de datos configurada exitosamente'
+      "
+    restart: "no"
+    networks:
+      - universidad-network-v2
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: universidad-backend-v2
+    environment:
+      - ConnectionStrings__DefaultConnection=Server=${DB_SERVER};Database=${DB_NAME};User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=true;
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
+      - ASPNETCORE_URLS=http://+:80
+    ports:
+      - "${BACKEND_PORT}:80"
+    depends_on:
+      sqlserver-config:
+        condition: service_completed_successfully
+    networks:
+      - universidad-network-v2
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: universidad-frontend-v2
+    ports:
+      - "${FRONTEND_PORT}:80"
+    depends_on:
+      - backend
+    networks:
+      - universidad-network-v2
+    restart: unless-stopped
+
+networks:
+  universidad-network-v2:
+    driver: bridge
+
+volumes:
+  sqlserver_data_v2:
+    driver: local

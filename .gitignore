@@ -1,0 +1,30 @@
+# ===========================================
+# ANGULAR - NO SUBIR
+# ===========================================
+frontend/universidad/node_modules/
+frontend/universidad/dist/
+frontend/universidad/.angular/cache/
+frontend/universidad/.vscode/
+*.tgz
+*.tar.gz
+
+# ===========================================
+# .NET - NO SUBIR
+# ===========================================
+backend/UniversidadAPI/bin/
+backend/UniversidadAPI/obj/
+backend/UniversidadAPI/.vs/
+backend/**/*.user
+backend/**/*.aps
+backend/**/*.ncb
+backend/**/*.suo
+
+# ===========================================
+# ARCHIVOS SENSIBLES
+# ===========================================
+
+# ===========================================
+# SISTEMA
+# ===========================================
+.DS_Store
+Thumbs.db
