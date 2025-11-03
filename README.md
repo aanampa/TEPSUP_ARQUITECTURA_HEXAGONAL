@@ -37,6 +37,11 @@ Este proyecto implementa **Arquitectura Hexagonal** con las siguientes capas:
 git clone https://github.com/aanampa/TEPSUP_ARQUITECTURA_HEXAGONAL.git
 cd TEPSUP_ARQUITECTURA_HEXAGONAL
 
+# Levantar todos los servicios
+docker-compose up --build
+```
 
-
-
+### 2. Endpoints Disponibles
+- API REST: http://localhost:8080
+- Base de datos: localhost:5432
+- Swagger/OpenAPI: http://localhost:8080/swagger-ui.html
