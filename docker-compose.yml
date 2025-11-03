@@ -1,83 +1,48 @@
-services:
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2019-latest
-    container_name: universidad-db-v2
-    hostname: universidad-db-v2
-    environment:
-      - ACCEPT_EULA=Y
-      - SA_PASSWORD=${ddir}
-      - MSSQL_PID=${MSSQL_PID}
-    ports:
-      - "${DB_PORT}:1433"
-    volumes:
-      - sqlserver_data_v2:/var/opt/mssql
-      - ./db/init-scripts:/init-scripts
-    healthcheck:
-      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P ${DB_PASSWORD} -Q "SELECT 1" -C || exit 1
-      interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 30s
-    restart: unless-stopped
-    networks:
-      - universidad-network-v2
+version: '3.8'
 
-  sqlserver-config:
-    image: mcr.microsoft.com/mssql/server:2019-latest
-    container_name: universidad-db-configurator-v2
-    depends_on:
-      sqlserver:
-        condition: service_healthy
-    volumes:
-      - ./db/init-scripts:/scripts
+services:
+  postgres:
+    image: postgres:13
+    container_name: universidad-db
     environment:
-      - SA_PASSWORD=${DB_PASSWORD}
-    command: |
-      bash -c "
-      /opt/mssql-tools18/bin/sqlcmd -S ${DB_SERVER} -U sa -P ${DB_PASSWORD} -C -i /scripts/01-create-database.sql
-      /opt/mssql-tools18/bin/sqlcmd -S ${DB_SERVER} -U sa -P ${DB_PASSWORD} -C -d ${DB_NAME} -i /scripts/02-create-tables.sql
-      /opt/mssql-tools18/bin/sqlcmd -S ${DB_SERVER} -U sa -P ${DB_PASSWORD} -C -d ${DB_NAME} -i /scripts/03-insert-data.sql
-      echo 'Base de datos configurada exitosamente'
-      "
-    restart: "no"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - universidad-network-v2
+      - universidad-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: universidad-backend-v2
+    build: ./backend
+    container_name: universidad-api
+    ports:
+      - "${API_PORT}:${SERVER_PORT}"
     environment:
-      - ConnectionStrings__DefaultConnection=Server=${DB_SERVER};Database=${DB_NAME};User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=true;
-      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
-      - ASPNETCORE_URLS=http://+:80
-    ports:
-      - "${BACKEND_PORT}:80"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:${POSTGRES_PORT}/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO}
+      SERVER_PORT: ${SERVER_PORT}
     depends_on:
-      sqlserver-config:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
     networks:
-      - universidad-network-v2
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: universidad-frontend-v2
-    ports:
-      - "${FRONTEND_PORT}:80"
-    depends_on:
-      - backend
-    networks:
-      - universidad-network-v2
-    restart: unless-stopped
-
-networks:
-  universidad-network-v2:
-    driver: bridge
+      - universidad-network
+    env_file:
+      - .env
 
 volumes:
-  sqlserver_data_v2:
-    driver: local
+  postgres_data:
+
+networks:
+  universidad-network:
+    driver: bridge

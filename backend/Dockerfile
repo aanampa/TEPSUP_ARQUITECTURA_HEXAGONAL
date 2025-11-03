@@ -1,20 +1,15 @@
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+FROM openjdk:17-jdk-slim
+
 WORKDIR /app
-EXPOSE 80
-EXPOSE 443
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
-COPY ["UniversidadAPI/UniversidadAPI.csproj", "UniversidadAPI/"]
-RUN dotnet restore "UniversidadAPI/UniversidadAPI.csproj"
-COPY . .
-WORKDIR "/src/UniversidadAPI"
-RUN dotnet build "UniversidadAPI.csproj" -c Release -o /app/build
+# Instalar Maven
+RUN apt-get update && apt-get install -y maven && rm -rf /var/lib/apt/lists/*
 
-FROM build AS publish
-RUN dotnet publish "UniversidadAPI.csproj" -c Release -o /app/publish
+# Copiar el proyecto
+COPY universidad .
 
-FROM base AS final
-WORKDIR /app
-COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "UniversidadAPI.dll"]
+# Compilar la aplicación
+RUN mvn clean package -DskipTests
+
+# Buscar el archivo JAR generado (selecciona automáticamente el JAR correcto)
+CMD java -jar target/*.jar
